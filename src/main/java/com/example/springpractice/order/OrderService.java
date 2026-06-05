@@ -37,6 +37,30 @@ public class OrderService {
         return OrderResponse.from(saved);
     }
 
+    /** 주문 목록 조회. fetch join 으로 주문+항목+상품을 한 번에 로딩(N+1 회피). */
+    public List<OrderResponse> findAll() {
+        return orderRepository.findAllWithItems().stream()
+                .map(OrderResponse::from)
+                .toList();
+    }
+
+    /** 주문 단건 상세 조회. */
+    public OrderResponse findById(Long id) {
+        Order order = orderRepository.findByIdWithItems(id)
+                .orElseThrow(() -> new NotFoundException("주문을 찾을 수 없습니다. id=" + id));
+        return OrderResponse.from(order);
+    }
+
+    /** 특정 상품이 포함된 주문 내역 조회. 상품이 없으면 404. */
+    public List<OrderResponse> findByProductId(Long productId) {
+        if (!productRepository.existsById(productId)) {
+            throw new NotFoundException("상품을 찾을 수 없습니다. id=" + productId);
+        }
+        return orderRepository.findAllByProductId(productId).stream()
+                .map(OrderResponse::from)
+                .toList();
+    }
+
     private Product getProductOrThrow(Long id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("상품을 찾을 수 없습니다. id=" + id));

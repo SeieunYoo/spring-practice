@@ -1,5 +1,7 @@
 package com.example.springpractice.product;
 
+import com.example.springpractice.order.OrderService;
+import com.example.springpractice.order.dto.OrderResponse;
 import com.example.springpractice.product.dto.ProductCreateRequest;
 import com.example.springpractice.product.dto.ProductResponse;
 import com.example.springpractice.product.dto.ProductUpdateRequest;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProductController {
 
     private final ProductService productService;
+    private final OrderService orderService;
 
     @PostMapping
     public ResponseEntity<ProductResponse> create(@Valid @RequestBody ProductCreateRequest request) {
@@ -53,5 +56,11 @@ public class ProductController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         productService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /** 특정 상품이 포함된 주문 내역. */
+    @GetMapping("/{id}/orders")
+    public ResponseEntity<List<OrderResponse>> findOrders(@PathVariable Long id) {
+        return ResponseEntity.ok(orderService.findByProductId(id));
     }
 }
