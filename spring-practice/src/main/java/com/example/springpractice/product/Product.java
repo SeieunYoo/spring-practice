@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -28,6 +29,16 @@ public class Product {
 
     @Column(nullable = false)
     private int stockQuantity;
+
+    /**
+     * 낙관적 락용 버전 컬럼. 이 필드가 있으면 Hibernate가 모든 UPDATE에
+     * "WHERE id=? AND version=?" 조건을 추가하고, 0건 갱신되면(=먼저 커밋된
+     * 트랜잭션이 이미 버전을 올려놓은 상태) OptimisticLockException을 던진다.
+     * 실제 주문 재고 차감 경로는 비관적 락({@link ProductRepository#findByIdForUpdate})을
+     * 쓰므로 이 필드와 직접 충돌하지 않지만, 낙관적 락 동작을 별도로 관찰하기 위해 남겨둔다.
+     */
+    @Version
+    private Long version;
 
     @Builder
     private Product(String name, int price, int stockQuantity) {

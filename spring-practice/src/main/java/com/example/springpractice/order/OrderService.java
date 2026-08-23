@@ -22,12 +22,14 @@ public class OrderService {
      * 주문을 생성한다.
      * 주문 저장과 재고 차감이 하나의 트랜잭션으로 묶여 있어,
      * 항목 중 하나라도 재고가 부족하면 앞서 차감된 재고까지 전부 롤백된다.
+     * 상품 조회에 비관적 락을 걸어, 동시에 들어온 주문들이 같은 상품의 재고를
+     * 동시에 읽어 각자 차감하는 lost update(오버셀)를 막는다.
      */
     @Transactional
     public OrderResponse create(OrderCreateRequest request) {
         List<OrderItem> orderItems = request.items().stream()
                 .map(item -> {
-                    Product product = getProductOrThrow(item.productId());
+                    Product product = getProductForUpdateOrThrow(item.productId());
                     return OrderItem.create(product, item.quantity()); // 여기서 재고 차감
                 })
                 .toList();
@@ -61,8 +63,8 @@ public class OrderService {
                 .toList();
     }
 
-    private Product getProductOrThrow(Long id) {
-        return productRepository.findById(id)
+    private Product getProductForUpdateOrThrow(Long id) {
+        return productRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new NotFoundException("상품을 찾을 수 없습니다. id=" + id));
     }
 }

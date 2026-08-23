@@ -35,3 +35,45 @@ spring-practice와 동일한 범위(상품 CRUD, 주문 생성+재고 차감 트
 ```bash
 ./gradlew test
 ```
+
+## Docker로 실행 (AWS 배포 연습용)
+
+기본(no-profile) 실행은 지금처럼 H2 인메모리 DB를 씁니다. AWS EC2 + RDS 배포를 연습하기 위해 `prod` 프로필(`application-prod.properties`)을 추가했고, 이 프로필은 MySQL(RDS)에 붙습니다.
+
+### 로컬에서 MySQL 컨테이너로 리허설
+
+실제 RDS에 연결하기 전에, docker-compose로 로컬 MySQL 컨테이너를 띄워 `prod` 프로필을 먼저 검증할 수 있습니다.
+
+```bash
+docker compose up --build
+```
+
+첫 빌드는 의존성을 새로 받기 때문에 몇 분 걸릴 수 있습니다. `db` 컨테이너 헬스체크가 통과한 뒤에 `app`이 뜨도록 구성돼 있습니다.
+
+### 실제 EC2 + RDS 배포 시 필요한 환경변수
+
+| 변수 | 예시 | 설명 |
+|---|---|---|
+| `SPRING_PROFILES_ACTIVE` | `prod` | prod 프로필 활성화 |
+| `DB_URL` | `jdbc:mysql://<rds-endpoint>:3306/kotlin_practice` | RDS 엔드포인트 |
+| `DB_USERNAME` | RDS 생성 시 지정한 마스터 유저 | |
+| `DB_PASSWORD` | RDS 생성 시 지정한 비밀번호 | |
+
+```bash
+docker run -e SPRING_PROFILES_ACTIVE=prod \
+  -e DB_URL=jdbc:mysql://<rds-endpoint>:3306/kotlin_practice \
+  -e DB_USERNAME=<user> -e DB_PASSWORD=<password> \
+  -p 8080:8080 kotlin-practice
+```
+
+### 주의할 점
+
+- **아키텍처 불일치**: Apple Silicon(M1/M2 등)에서 빌드한 이미지는 기본적으로 arm64라 일반 x86_64 EC2(t2/t3 등)에서 안 돌아갑니다. `docker buildx build --platform linux/amd64 -t kotlin-practice .`로 빌드하거나, Graviton 기반 `t4g` 인스턴스를 쓰세요.
+- **프리티어 인스턴스에서 직접 빌드 지양**: `t2.micro`/`t3.micro`(RAM 1GB)에서 `docker build`(Gradle+Kotlin 컴파일)를 직접 돌리면 느리거나 OOM이 날 수 있습니다. 로컬에서 이미지를 빌드한 뒤 `docker save` + `scp`로 옮기거나, Docker Hub에 push하고 EC2에서 `docker pull`하는 걸 권장합니다.
+- **`ddl-auto=update`는 토이 프로젝트용 타협**입니다. 컬럼 삭제 등은 반영되지 않고 엔티티와 스키마가 서서히 어긋날 수 있어서, 실제 프로젝트라면 Flyway/Liquibase 같은 마이그레이션 도구를 쓰는 게 맞습니다.
+
+### 코드 밖에서 직접 해야 하는 AWS 설정
+
+- RDS(MySQL) 인스턴스 생성
+- EC2 인스턴스 생성 + Docker 설치
+- 보안그룹: EC2 → RDS 3306 포트 허용, 인터넷 → EC2 8080(또는 80) 인바운드 허용
